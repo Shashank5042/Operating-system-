@@ -1,0 +1,40 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#define NUM_THREADS 2
+#define COUNT_LIMIT 5
+int count = 0;
+pthread_mutex_t count_mutex;
+void *incrementCounter(void *threadId) {
+    int tid = *((int *)threadId);
+    for (int i = 0; i < COUNT_LIMIT; i++) {
+        pthread_mutex_lock(&count_mutex);
+        count++;
+        printf("Thread %d: Counter = %d\n", tid, count);
+        pthread_mutex_unlock(&count_mutex);
+    }
+    pthread_exit(NULL);
+}
+int main() {
+    pthread_t threads[NUM_THREADS];
+    int threadIds[NUM_THREADS] = {1, 2};
+    if (pthread_mutex_init(&count_mutex, NULL) != 0) {
+        fprintf(stderr, "Error initializing mutex\n");
+        exit(EXIT_FAILURE);
+    }
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_create(&threads[i], NULL, incrementCounter, (void *)&threadIds[i]) != 0) {
+            fprintf(stderr, "Error creating thread %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_join(threads[i], NULL) != 0) {
+            fprintf(stderr, "Error joining thread %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+    pthread_mutex_destroy(&count_mutex);
+    printf("Final Counter: %d\n", count);
+    return 0;
+}
