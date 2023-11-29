@@ -1,0 +1,59 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#define MSG_KEY 1234
+#define MSG_SIZE 50
+typedef struct {
+    long msgType;
+    char message[MSG_SIZE];
+} Message;
+void producer(int msgid) {
+    Message msg;
+    msg.msgType = 1;
+    for (int i = 1; i <= 5; i++) {
+        snprintf(msg.message, MSG_SIZE, "Message %d from producer", i);
+        if (msgsnd(msgid, &msg, sizeof(msg.message), 0) == -1) {
+            perror("msgsnd");
+            exit(EXIT_FAILURE);
+        }
+        printf("Producer sent: %s\n", msg.message);
+        sleep(1);
+    }
+}
+
+void consumer(int msgid) {
+    Message msg;
+    msg.msgType = 1;
+    for (int i = 1; i <= 5; i++) {
+        if (msgrcv(msgid, &msg, sizeof(msg.message), 0, 0) == -1) {
+            perror("msgrcv");
+            exit(EXIT_FAILURE);
+        }
+        printf("Consumer received: %s\n", msg.message);
+        sleep(1);
+    }
+}
+int main() {
+    int msgid = msgget(MSG_KEY, IPC_CREAT | 0666);
+    if (msgid == -1) {
+        perror("msgget");
+        exit(EXIT_FAILURE);
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        consumer(msgid);
+    } else {
+        producer(msgid);
+        wait(NULL);
+        if (msgctl(msgid, IPC_RMID, NULL) == -1) {
+            perror("msgctl");
+            exit(EXIT_FAILURE);
+        }
+    }
+    return 0;
+}
