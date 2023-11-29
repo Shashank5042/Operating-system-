@@ -1,0 +1,55 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#define SHM_SIZE 100
+typedef struct {
+    int value;
+    int isProduced;
+} SharedData;
+void producer(SharedData *sharedData) {
+    for (int i = 1; i <= 5; i++) {
+        sharedData->value = i;
+        sharedData->isProduced = 1;
+        printf("Producer produced: %d\n", i);
+        sleep(1);
+    }
+}
+void consumer(SharedData *sharedData) {
+    for (int i = 1; i <= 5; i++) {
+        while (sharedData->isProduced == 0) {
+            sleep(1);
+        }
+        printf("Consumer consumed: %d\n", sharedData->value);
+        sharedData->isProduced = 0;
+        sleep(1);
+    }
+}
+int main() {
+    key_t key = ftok(".", 'a');
+    int shmid = shmget(key, sizeof(SharedData), IPC_CREAT | 0666);
+    if (shmid == -1) {
+        perror("shmget");
+        exit(EXIT_FAILURE);
+    }
+    SharedData *sharedData = (SharedData *)shmat(shmid, NULL, 0);
+    if ((int)sharedData == -1) {
+        perror("shmat");
+        exit(EXIT_FAILURE);
+    }
+    sharedData->isProduced = 0;
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        consumer(sharedData);
+    } else {
+        producer(sharedData);
+        wait(NULL);
+        shmdt((void *)sharedData);
+        shmctl(shmid, IPC_RMID, NULL);
+    }
+    return 0;
+}
